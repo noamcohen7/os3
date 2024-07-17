@@ -61,6 +61,7 @@ static long device_ioctl( struct   file* file,
         
         new_channel_node->channel_id = ioctl_param;
         new_channel_node->next = NULL;
+        new_channel_node->msg_length = 0;
 
         if (node_info.node == NULL){
             printk("Creating new channel for minor num: %d with channel id: %d", minor_num, ioctl_param);
