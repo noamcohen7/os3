@@ -30,6 +30,14 @@ static long device_ioctl( struct   file* file,
                           unsigned int   ioctl_command_id,
                           unsigned long  ioctl_param )
 {
+    channel_info *channel_info_struct = (channel_info *)kmalloc(sizeof(channel_info), GFP_KERNEL);
+    if (channel_info_struct == NULL){
+        printk("Failedf allocating memory for channel info");
+        return -ENOMEM;
+    }
+    channel_info_struct->is_active = false;
+    channel_info_struct->channel = NULL;
+
     message_slot_node *node_info;
     int minor_num = iminor(file->f_inode);
     message_slot_node * new_channel_node;
@@ -45,8 +53,9 @@ static long device_ioctl( struct   file* file,
     node_info = get_node_res(minor_num, ioctl_param);
     
     if (node_info != NULL && node_info->channel_id == ioctl_param){
-        printk("Node already exists, will set private file data");
+        printk("Node already exists, setting is_active: true");
         new_channel_node = node_info;
+        channel_info_struct->is_active = true;
     }
     else{
         new_channel_node = (message_slot_node *)kmalloc(sizeof(message_slot_node), GFP_KERNEL);
@@ -68,8 +77,9 @@ static long device_ioctl( struct   file* file,
         }
     }
 
+    channel_info_struct->channel = new_channel_node;
     printk("Allocating the channel to file private data");
-    file->private_data = new_channel_node;
+    file->private_data = channel_info_struct;
 
     //printk("Ioctl of channel %d of minor %d\n", new_channel_node->channel_id, minor_num);// TODO change this 
     return SUCCESS;
@@ -84,11 +94,17 @@ static ssize_t device_read( struct file* file,
                             size_t       length,
                             loff_t*      offset )
 {
-    message_slot_node * channel = (message_slot_node *)file->private_data;
+    channel_info * channel_info_struce = (channel_info *)file->private_data;
+    if (channel_info_struce == NULL){
+        printk("channel_info_struce is null");
+        return -EINVAL;
+    }
+    
+    message_slot_node * channel = channel_info_struce->channel;
     int msg_len, i;
 
     // No valid channel
-    if (channel == NULL){
+    if (channel_info_struce->is_active == false){
         printk("Provided fd does not contain valid channel");
         return -EINVAL;
     }
@@ -124,7 +140,14 @@ static ssize_t device_write( struct file*       file,
                              size_t             length,
                              loff_t*            offset)
 {
-    message_slot_node * channel = (message_slot_node *)file->private_data;
+    channel_info * channel_info_struce = (channel_info *)file->private_data;
+    if (channel_info_struce == NULL){
+        printk("Provided fd does not contain valid channel");
+        return -EINVAL;
+    }
+
+    message_slot_node * channel = channel_info_struce->channel;
+    
     char the_message[BUF_LEN];
     // No valid channel
     if (channel == NULL){

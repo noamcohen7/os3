@@ -30,4 +30,11 @@ typedef struct
     message_slot_node *head;
 }message_slot_list;
 
+// Struct used to describe the list of nodes
+typedef struct 
+{
+    bool is_active;
+    message_slot_node *channel;
+}channel_info;
+
 #endif
