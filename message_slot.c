@@ -10,7 +10,7 @@
 #include <linux/uaccess.h>  /* for get_user and put_user */
 #include <linux/string.h>   /* for memset. NOTE - not string.h!*/
 #include <linux/slab.h>
-#include <errno.h> // does not work for me for both nova and vm
+#include <linux/errno.h> // does not work for me for both nova and vm
 
 MODULE_LICENSE("GPL");
 
@@ -35,11 +35,11 @@ static long device_ioctl( struct   file* file,
     message_slot_node * new_channel_node;
     if (ioctl_command_id != MSG_SLOT_CHANNEL){
         printk("Invalid param ioctl_command_id provided: %d \n", ioctl_command_id);
-        return -22;
+        return -EINVAL;
     }
     if (ioctl_param < 0 || ioctl_param > 256){
         printk("Invalid param ioctl_param provided: %d \n", ioctl_param);
-        return -22;
+        return -EINVAL;
     }
 
     node_info = get_node_res(minor_num, ioctl_param);
@@ -52,7 +52,7 @@ static long device_ioctl( struct   file* file,
         new_channel_node = (message_slot_node *)kmalloc(sizeof(message_slot_node), GFP_KERNEL);
         if (new_channel_node == NULL){
             printk("Failed allocating memory\n");
-            return -12;
+            return -ENOMEM;
         }
         
         new_channel_node->channel_id = ioctl_param;
@@ -90,7 +90,7 @@ static ssize_t device_read( struct file* file,
     // No valid channel
     if (channel == NULL){
         printk("Provided fd does not contain valid channel");
-        return -22;
+        return -EINVAL;
     }
     int channel_id = channel->channel_id;
     int minor_num = iminor(file->f_inode);
@@ -98,11 +98,11 @@ static ssize_t device_read( struct file* file,
     // No message exists on the channel
     if (channel->msg_length == 0){
         printk("Given minor: %d, provided channel %d does not contain any message %d\n", minor_num, channel->channel_id);
-        return -35;
+        return -EWOULDBLOCK;
     }
     if (length < channel->msg_length){
         printk("Given minor: %d, provided channel %d last message is too large for provided buffer %d\n", minor_num, channel->channel_id);
-        return -28;
+        return -ENOSPC;
     }
     if (buffer == NULL){
         printk("Null pointer provided for buffer");
@@ -110,7 +110,7 @@ static ssize_t device_read( struct file* file,
 
     if (copy_to_user(buffer, channel->message, channel->msg_length) != 0) {
         printk("copy_to_user failed\n");
-        return -55;
+        return -EIO;
     }
 
     return length;
@@ -129,11 +129,11 @@ static ssize_t device_write( struct file*       file,
     // No valid channel
     if (channel == NULL){
         printk("Provided fd does not contain valid channel");
-        return -22;
+        return -EINVAL;
     }
     if (length == EMPTY_BUF || length > BUF_LEN){
         printk("Given length: %d is invalid should be between: 1-%d", length, BUF_LEN);
-        return -40;
+        return -EMSGSIZE;
     }
 
     ssize_t i, j;
@@ -141,7 +141,7 @@ static ssize_t device_write( struct file*       file,
     for( i = 0; i < length && i < BUF_LEN; ++i ) {
         if (get_user(the_message[i], &buffer[i]) != 0){
             printk("get_user failed\n");
-            return -55;
+            return -EIO;
         }
     }
     printk("Number of written bytes is: %zd", i);
