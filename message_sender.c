@@ -21,7 +21,7 @@ void handle_open(int fd){
 
 void handle_ioctl(int fd, int res_code){
     if (res_code != 0){
-        perror("Failed to call ioctl api, recived res code: %d", res_code);
+        perror("Failed to call ioctl api, recived res code");
         printf("Closing file descriptor");
         close(fd);
         exit(errno);
