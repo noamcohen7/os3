@@ -10,7 +10,7 @@
 #include <linux/uaccess.h>  /* for get_user and put_user */
 #include <linux/string.h>   /* for memset. NOTE - not string.h!*/
 #include <linux/slab.h>
-//#include <errno.h>
+#include <errno.h>
 
 MODULE_LICENSE("GPL");
 
@@ -143,11 +143,13 @@ static ssize_t device_write( struct file*       file,
             return -55;
         }
     }
+    printk("Number of written bytes is: %zd", i);
     channel->msg_length = i;
     for (j = 0; j < i; j++){
         channel->message[i] = the_message[i];
     }
-    printk("Message wrote to channel: %d with minor: %d", channel->channel_id, iminor(file->f_inode));
+    printk("Message wrote to channel: %d with minor: %d, length of message is: %d", channel->channel_id, iminor(file->f_inode), 
+    channel->msg_length);
     return i;
 }
 
