@@ -16,7 +16,7 @@ MODULE_LICENSE("GPL");
 
 #include "message_slot.h"
 
-static message_slot_list channels_list[257]; // Supports 256 beacuse 0 is not a valid channel id
+static message_slot_list channels_list[256];
 
 message_slot_node *get_node_res(int minor_num, int channel_id);
 
@@ -68,9 +68,8 @@ static long device_ioctl( struct   file* file,
         }
     }
 
-    printk("Allocating new channel to file private data");
+    printk("Allocating the channel to file private data");
     file->private_data = new_channel_node;
-    printk("Allocated the file private data");
 
     //printk("Ioctl of channel %d of minor %d\n", new_channel_node->channel_id, minor_num);// TODO change this 
     return SUCCESS;
@@ -85,7 +84,6 @@ static ssize_t device_read( struct file* file,
                             size_t       length,
                             loff_t*      offset )
 {
-    printk("Going to take file private data");
     message_slot_node * channel = (message_slot_node *)file->private_data;
     int msg_len, i;
 
@@ -96,6 +94,7 @@ static ssize_t device_read( struct file* file,
     }
     int channel_id = channel->channel_id;
     int minor_num = iminor(file->f_inode);
+    
     // No message exists on the channel
     if (channel->msg_length == 0){
         printk("Given minor: %d, provided channel %d does not contain any message %d\n", minor_num, channel->channel_id);
@@ -109,24 +108,17 @@ static ssize_t device_read( struct file* file,
         printk("Null pointer provided for buffer");
     }
 
-    // if (copy_to_user(buffer, channel->message, channel->msg_length) != 0) {
-    //     printk("copy_to_user failed\n");
-    //     return -55;
-    // }
-    for (i = 0; i < channel->msg_length; ++i) {
-		if (put_user(channel->message[i], &buffer[i]) != 0) {
-            printk("Failed on put user");
-			return -55;
-		}
-	}
-
-
-
-    int j;
-    printk("Read buffer:\n");
-    for (j = 0; j < channel->msg_length; j++){
-        printk("%c", channel->message[j]);
+    if (copy_to_user(buffer, channel->message, channel->msg_length) != 0) {
+        printk("copy_to_user failed\n");
+        return -55;
     }
+    // for (i = 0; i < channel->msg_length; ++i) {
+	// 	if (put_user(channel->message[i], &buffer[i]) != 0) {
+    //         printk("Failed on put user");
+	// 		return -55;
+	// 	}
+	// }
+
     return length;
 }
 
@@ -167,15 +159,6 @@ static ssize_t device_write( struct file*       file,
     printk("Message wrote to channel: %d with minor: %d, length of message is: %d", channel->channel_id, iminor(file->f_inode), 
     channel->msg_length);
 
-    printk("Write message outside the obj:\n");
-    for (j = 0; j < length; ++j) {
-        printk("%c", the_message[j]);
-    }
-
-    printk("Write message inside the obj:\n");
-    for (j = 0; j < length; ++j) {
-        printk("%c", channel->message[j]);
-    }
     return i;
 }
 
@@ -203,12 +186,6 @@ void clean_list(message_slot_node *curr){
     }
     return;
 }
-
-// static int device_release(struct inode* inode, struct file*  file) {
-// 	kfree(file->private_data);
-//     printk("Freed the file private data");
-// 	return SUCCESS;
-// }
 
 
 //==================== DEVICE SETUP =============================
@@ -260,7 +237,7 @@ static void __exit simple_cleanup(void)
 {   
     int i;
 
-    for (i = 0; i < 257; i++){
+    for (i = 0; i < 256; i++){
         clean_list(channels_list[i].head);
     }
     printk( "Unregisteration is successful. ");
