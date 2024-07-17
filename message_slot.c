@@ -74,6 +74,7 @@ static long device_ioctl( struct   file* file,
     }
     file->private_data = new_channel_node;
 
+    kfree(&node_info);
     //printk("Ioctl of channel %d of minor %d\n", new_channel_node->channel_id, minor_num);// TODO change this 
     return SUCCESS;
 }
@@ -150,6 +151,8 @@ static ssize_t device_write( struct file*       file,
     }
     printk("Message wrote to channel: %d with minor: %d, length of message is: %d", channel->channel_id, iminor(file->f_inode), 
     channel->msg_length);
+
+    printk("Write message is: %s", channel.message);
     return i;
 }
 
@@ -188,6 +191,7 @@ void clean_list(message_slot_node *curr){
 
 static int device_release(struct inode* inode, struct file*  file) {
 	kfree(file->private_data);
+    printk("Freed the file private data")
 	return SUCCESS;
 }
 
@@ -245,6 +249,7 @@ static void __exit simple_cleanup(void)
     for (i = 0; i < 257; i++){
         clean_list(channels_list[i].head);
     }
+    printk( "Unregisteration is successful. ");
     // Unregister the device
     // Should always succeed
     unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
