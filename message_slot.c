@@ -77,37 +77,6 @@ static long device_ioctl( struct   file* file,
 }
 
 
-static ssize_t device_read(struct file* file, char __user* buffer, size_t length, loff_t* offset) {
-	int i,msg_size, fail_flag = 0;
-	char *last_message;
-	file_data *data = (file_data*)(file->private_data);
-	printk("Invoking device_read(%p,%ld)\n",file, length);
-	if (data->working_channel_id == 0 || buffer == NULL) {
-		return -EINVAL;
-	}
-	last_message = data->working_channel->message;
-	msg_size = data->working_channel->msg_size;
-	if (msg_size==0) {
-		return -EWOULDBLOCK;
-	}
-	if (length < msg_size) {
-		return -ENOSPC;
-	}
-	// transfer message to user's buffer
-	for (i = 0; i < msg_size; ++i) {
-		if (put_user(last_message[i], buffer + i) != 0) {
-			fail_flag = 1;
-		}
-	}
-	if (fail_flag) {
-		return -EIO;
-	}
-	// return the number of input characters used
-	return i;
-}
-
-
-
 //---------------------------------------------------------------
 // a process which has already opened
 // the device file attempts to read from it
