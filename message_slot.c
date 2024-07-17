@@ -27,7 +27,7 @@ typedef struct {
 channel_result *get_channel(int minor_num, int channel_id);
 
 static int device_open(struct inode* inode, struct file*  file) {
-    printk("Device open was called successfully")
+    printk("Device open was called successfully");
 	return SUCCESS;
 }
 
