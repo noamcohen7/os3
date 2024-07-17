@@ -76,6 +76,38 @@ static long device_ioctl( struct   file* file,
     return SUCCESS;
 }
 
+
+static ssize_t device_read(struct file* file, char __user* buffer, size_t length, loff_t* offset) {
+	int i,msg_size, fail_flag = 0;
+	char *last_message;
+	file_data *data = (file_data*)(file->private_data);
+	printk("Invoking device_read(%p,%ld)\n",file, length);
+	if (data->working_channel_id == 0 || buffer == NULL) {
+		return -EINVAL;
+	}
+	last_message = data->working_channel->message;
+	msg_size = data->working_channel->msg_size;
+	if (msg_size==0) {
+		return -EWOULDBLOCK;
+	}
+	if (length < msg_size) {
+		return -ENOSPC;
+	}
+	// transfer message to user's buffer
+	for (i = 0; i < msg_size; ++i) {
+		if (put_user(last_message[i], buffer + i) != 0) {
+			fail_flag = 1;
+		}
+	}
+	if (fail_flag) {
+		return -EIO;
+	}
+	// return the number of input characters used
+	return i;
+}
+
+
+
 //---------------------------------------------------------------
 // a process which has already opened
 // the device file attempts to read from it
@@ -86,6 +118,7 @@ static ssize_t device_read( struct file* file,
 {
     printk("Going to take file private data");
     message_slot_node * channel = (message_slot_node *)file->private_data;
+    int msg_len, i;
 
     // No valid channel
     if (channel == NULL){
@@ -107,13 +140,21 @@ static ssize_t device_read( struct file* file,
         printk("Null pointer provided for buffer");
     }
 
-    if (copy_to_user(buffer, channel->message, length) != 0) {
-        printk("copy_to_user failed\n");
-        return -55;
-    }
+    // if (copy_to_user(buffer, channel->message, channel->msg_length) != 0) {
+    //     printk("copy_to_user failed\n");
+    //     return -55;
+    // }
+    for (i = 0; i < channel->msg_length; ++i) {
+		if (put_user(channel->message[i], buffer + i) != 0) {
+			return -55;
+		}
+	}
+
+
+
     int j;
     printk("Read buffer:\n");
-    for (j = 0; j < length; j++){
+    for (j = 0; j < channel->msg_length; j++){
         printk("%c", buffer[j]);
     }
     return length;
