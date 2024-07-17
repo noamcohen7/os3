@@ -125,7 +125,7 @@ static ssize_t device_read( struct file* file,
     int j;
     printk("Read buffer:\n");
     for (j = 0; j < channel->msg_length; j++){
-        printk("%c", buffer[j]);
+        printk("%c", channel->message[j]);
     }
     return length;
 }
