@@ -19,12 +19,7 @@ MODULE_LICENSE("GPL");
 static message_slot_list channels_list[257]; // Supports 256 beacuse 0 is not a valid channel id
 static char the_message[BUF_LEN]; // The message the device will give when asked
 
-typedef struct {
-    message_slot_node *node;
-    bool found; // true if a new node was created, false if an existing node was found
-} channel_result;
-
-channel_result *get_channel(int minor_num, int channel_id);
+message_slot_node *get_node_res(int minor_num, int channel_id);
 
 static int device_open(struct inode* inode, struct file*  file) {
     printk("Device open was called successfully");
@@ -36,7 +31,7 @@ static long device_ioctl( struct   file* file,
                           unsigned int   ioctl_command_id,
                           unsigned long  ioctl_param )
 {
-    channel_result node_info;
+    message_slot_node *node_info;
     int minor_num = iminor(file->f_inode);
     message_slot_node * new_channel_node;
     if (ioctl_command_id != MSG_SLOT_CHANNEL){
@@ -48,11 +43,12 @@ static long device_ioctl( struct   file* file,
         return -22;
     }
 
-    node_info = *get_channel(minor_num, ioctl_param);
+    node_info = get_node_res(minor_num, ioctl_param);
     
-    // Did not find node for this channel id - allocating one
-    if (node_info.found == false)
-    {
+    if (node_info != NULL && node_info->channel_id == ioctl_param){
+        printk("Node already exists, will set private file data");
+    }
+    else{
         new_channel_node = (message_slot_node *)kmalloc(sizeof(message_slot_node), GFP_KERNEL);
         if (new_channel_node == NULL){
             printk("Failed allocating memory\n");
@@ -62,27 +58,20 @@ static long device_ioctl( struct   file* file,
         new_channel_node->channel_id = ioctl_param;
         new_channel_node->next = NULL;
         new_channel_node->msg_length = 0;
-
-        if (node_info.node == NULL){
-            printk("Creating new channel for minor num: %d with channel id: %d", minor_num, ioctl_param);
+        
+        // There is no channel under given node
+        if (node_info == NULL){
             channels_list[minor_num].head = new_channel_node;
-            printk("Successfully alocated the new channel for head");
         }
         else{
-            printk("Creating new channel: %d for existing minor_num: %d", ioctl_param, minor_num);
-            node_info.node->next = new_channel_node;
-        }   
+            node_info->next = new_channel_node;
+        }
     }
-    else{
-        new_channel_node = node_info.node;
-    }
+
     printk("Allocating new channel to file private data");
     file->private_data = new_channel_node;
     printk("Allocated the file private data");
 
-    printk("Freeing node info");
-    kfree(node_info);
-    printk("Freed node info");
     //printk("Ioctl of channel %d of minor %d\n", new_channel_node->channel_id, minor_num);// TODO change this 
     return SUCCESS;
 }
@@ -164,27 +153,19 @@ static ssize_t device_write( struct file*       file,
     return i;
 }
 
-
-channel_result *get_channel(int minor_num, int channel_id){
+message_slot_node *get_node_res(int minor_num, int channel_id){
     message_slot_node *cur_node = channels_list[minor_num].head;
-    channel_result *res = kmalloc(sizeof(channel_result), GFP_KERNEL);
-    res->found = false;
     if (cur_node != NULL){
-
-        // Run until we have the currect node
         while (cur_node != NULL){
             if (cur_node->channel_id == channel_id){
-                res->found = true;
                 break;
             }
-            if (cur_node->next == NULL) {
+            if (cur_node->next == NULL){
                 break;
             }
-            cur_node = cur_node->next;
         }
     }
-    res->node = cur_node;
-    return res;
+    return cur_node;
 }
 
 void clean_list(message_slot_node *curr){
