@@ -193,7 +193,7 @@ void clean_list(message_slot_node *curr){
 
 static int device_release(struct inode* inode, struct file*  file) {
 	kfree(file->private_data);
-    printk("Freed the file private data")
+    printk("Freed the file private data");
 	return SUCCESS;
 }
 
