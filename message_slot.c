@@ -120,6 +120,7 @@ static ssize_t device_write( struct file*       file,
                              size_t             length,
                              loff_t*            offset)
 {
+    printk("Going to write buffer: %s",)
     message_slot_node * channel = (message_slot_node *)file->private_data;
     char the_message[BUF_LEN];
     // No valid channel
@@ -129,7 +130,7 @@ static ssize_t device_write( struct file*       file,
     }
     if (length == EMPTY_BUF || length > BUF_LEN){
         printk("Given length: %d is invalid should be between: 1-%d", length, BUF_LEN);
-        return 40;
+        return -40;
     }
 
     ssize_t i, j;
@@ -142,6 +143,13 @@ static ssize_t device_write( struct file*       file,
     }
     printk("Number of written bytes is: %zd", i);
     channel->msg_length = i;
+
+    printk("Characters written: ");
+    for (i = 0; i < length; ++i) {
+        printk("%c", the_message[i]);
+    }
+    printk("\n");
+    
     for (j = 0; j < i; j++){
         channel->message[i] = the_message[i];
     }
@@ -177,11 +185,11 @@ void clean_list(message_slot_node *curr){
     return;
 }
 
-static int device_release(struct inode* inode, struct file*  file) {
-	kfree(file->private_data);
-    printk("Freed the file private data");
-	return SUCCESS;
-}
+// static int device_release(struct inode* inode, struct file*  file) {
+// 	kfree(file->private_data);
+//     printk("Freed the file private data");
+// 	return SUCCESS;
+// }
 
 
 //==================== DEVICE SETUP =============================
@@ -194,7 +202,6 @@ struct file_operations Fops = {
   .write          = device_write,
   .open           = device_open,
   .unlocked_ioctl = device_ioctl,
-  .release        = device_release,
 };
 
 //---------------------------------------------------------------
