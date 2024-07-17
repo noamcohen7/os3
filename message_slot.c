@@ -10,7 +10,7 @@
 #include <linux/uaccess.h>  /* for get_user and put_user */
 #include <linux/string.h>   /* for memset. NOTE - not string.h!*/
 #include <linux/slab.h>
-//#include <errno.h> // does not work for me for both nova and vm
+#include <errno.h> // does not work for me for both nova and vm
 
 MODULE_LICENSE("GPL");
 
