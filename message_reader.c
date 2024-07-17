@@ -32,7 +32,7 @@ void handle_ioctl(int fd, int res_code){
 void handle_read(int fd, int res_code){
     // Number of written bytes in negative indicating error occurred.
     if (res_code < 0){
-        perror("Failed to write message to fd");
+        perror("Failed to read message from fd");
         close(fd);
         exit(errno);
     }
