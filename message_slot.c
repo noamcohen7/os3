@@ -114,7 +114,8 @@ static ssize_t device_read( struct file* file,
     //     return -55;
     // }
     for (i = 0; i < channel->msg_length; ++i) {
-		if (put_user(channel->message[i], buffer + i) != 0) {
+		if (put_user(channel->message[i], &buffer[i]) != 0) {
+            printk("Failed on put user");
 			return -55;
 		}
 	}
