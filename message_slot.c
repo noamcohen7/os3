@@ -77,8 +77,11 @@ static long device_ioctl( struct   file* file,
     }
     printk("Allocating new channel to file private data");
     file->private_data = new_channel_node;
+    printk("Allocated the file private data");
 
-    kfree(&node_info);
+    printk("Freeing node info");
+    kfree(node_info);
+    printk("Freed node info");
     //printk("Ioctl of channel %d of minor %d\n", new_channel_node->channel_id, minor_num);// TODO change this 
     return SUCCESS;
 }
