@@ -63,6 +63,7 @@ int main(int argc, char **argv) {
 
     int res_code = ioctl(fd, MSG_SLOT_CHANNEL, channel_id);
     handle_ioctl(fd, res_code);
+    printf("Res code is: %d", res_code);
 
     res_code = read(fd, buffer, BUF_LEN);
     handle_read(fd, res_code);

@@ -40,7 +40,6 @@ void handle_write(int fd, int res_code){
 }
 
 int main(int argc, char **argv) {
-    printf("Inside main of message_sender");
     if (argc != 4) {
         perror("Arguments count including program executable should be 4");
         exit(1);
@@ -61,5 +60,8 @@ int main(int argc, char **argv) {
 
     res_code = write(fd, message, strlen(message));
     handle_write(fd, res_code);
+
+    printf("Closing fd: %d", fd);
     close(fd);
+    printf("Closed fd: %d", fd);
 }
