@@ -111,6 +111,11 @@ static ssize_t device_read( struct file* file,
         printk("copy_to_user failed\n");
         return -55;
     }
+    int j;
+    printk("Read buffer:\n");
+    for (j = 0; j < length; j++){
+        printk("%c", buffer[j]);
+    }
     return length;
 }
 
