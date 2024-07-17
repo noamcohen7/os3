@@ -12,7 +12,7 @@
 
 void handle_open(int fd){
     if (fd < 0){
-        perror("Invalid fd: %d provided", fd);
+        perror("Invalid fd provided");
         close(fd);
         exit(1);
     }
@@ -21,8 +21,8 @@ void handle_open(int fd){
 
 void handle_ioctl(int fd, int res_code){
     if (res_code != 0){
-        perror("Failed to call ioctl api, recived res code: %d", res_code);
-        printf("Closing file descriptor: %d", fd);
+        perror("Failed to call ioctl api, recived res code");
+        printf("Closing file descriptor");
         close(fd);
         exit(errno);
     }
@@ -32,7 +32,7 @@ void handle_ioctl(int fd, int res_code){
 void handle_read(int fd, int res_code){
     // Number of written bytes in negative indicating error occurred.
     if (res_code < 0){
-        perror("Failed to write message to fd: %d", fd);
+        perror("Failed to write message to fd");
         close(fd);
         exit(errno);
     }
@@ -42,7 +42,7 @@ void handle_read(int fd, int res_code){
 int main(int argc, char **args) {
     
     if (argc != 3) {
-        perror("Arguments count including program executable should be 3, instead received: %d", argc);
+        perror("Arguments count including program executable should be 3");
         exit(1);
     }
     int fd;
@@ -60,7 +60,7 @@ int main(int argc, char **args) {
     unsigned long channel_id = strtol(args[2], endptr, 10);
     if (*endptr != '\0') {
         // Conversion failed
-        perror("Conversion error, non-convertible part: %s\n", endptr);
+        perror("Conversion error");
     }
 
     fd = open(device_file_path, O_RDWR);
