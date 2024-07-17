@@ -56,12 +56,7 @@ int main(int argc, char **args) {
         return -ENOBUFS;
     }
 
-    char *endptr;
-    unsigned long channel_id = strtol(args[2], endptr, 10);
-    if (*endptr != '\0') {
-        // Conversion failed
-        perror("Conversion error");
-    }
+    unsigned long channel_id = atoi(argv[2]);
 
     fd = open(device_file_path, O_RDWR);
     handle_open(fd);

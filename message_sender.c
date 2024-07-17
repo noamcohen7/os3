@@ -40,7 +40,7 @@ void handle_write(int fd, int res_code){
 }
 
 int main(int argc, char **args) {
-    
+    printf("Inside main of message_sender");
     if (argc != 4) {
         perror("Arguments count including program executable should be 4");
         exit(1);
@@ -49,11 +49,8 @@ int main(int argc, char **args) {
     char *device_file_path = args[1];
     int fd;
     char *endptr;
-    unsigned long channel_id = strtol(args[2], endptr, 10);
-    if (*endptr != '\0') {
-        // Conversion failed
-        perror("Conversion error");
-    }
+    unsigned long channel_id = atoi(argv[2]);
+
     char *message = args[3];
 
     fd = open(device_file_path, O_RDWR);
