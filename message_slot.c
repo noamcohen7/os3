@@ -46,6 +46,7 @@ static long device_ioctl( struct   file* file,
     
     if (node_info != NULL && node_info->channel_id == ioctl_param){
         printk("Node already exists, will set private file data");
+        new_channel_node = node_info;
     }
     else{
         new_channel_node = (message_slot_node *)kmalloc(sizeof(message_slot_node), GFP_KERNEL);
@@ -83,6 +84,7 @@ static ssize_t device_read( struct file* file,
                             size_t       length,
                             loff_t*      offset )
 {
+    printk("Going to take file private data");
     message_slot_node * channel = (message_slot_node *)file->private_data;
 
     // No valid channel
@@ -120,7 +122,6 @@ static ssize_t device_write( struct file*       file,
                              size_t             length,
                              loff_t*            offset)
 {
-    printk("Going to write buffer: %s",)
     message_slot_node * channel = (message_slot_node *)file->private_data;
     char the_message[BUF_LEN];
     // No valid channel
@@ -143,12 +144,6 @@ static ssize_t device_write( struct file*       file,
     }
     printk("Number of written bytes is: %zd", i);
     channel->msg_length = i;
-
-    printk("Characters written: ");
-    for (i = 0; i < length; ++i) {
-        printk("%c", the_message[i]);
-    }
-    printk("\n");
     
     for (j = 0; j < i; j++){
         channel->message[i] = the_message[i];
