@@ -39,14 +39,14 @@ void handle_read(int fd, int res_code){
     return;
 }
 
-int main(int argc, char **args) {
+int main(int argc, char **argv) {
     
     if (argc != 3) {
         perror("Arguments count including program executable should be 3");
         exit(1);
     }
     int fd;
-    char *device_file_path = args[1];
+    char *device_file_path = argv[1];
     char *buffer;
     int bytes_written_stdout;
 
