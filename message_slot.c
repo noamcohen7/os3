@@ -17,7 +17,6 @@ MODULE_LICENSE("GPL");
 #include "message_slot.h"
 
 static message_slot_list channels_list[257]; // Supports 256 beacuse 0 is not a valid channel id
-static char the_message[BUF_LEN]; // The message the device will give when asked
 
 message_slot_node *get_node_res(int minor_num, int channel_id);
 
@@ -122,7 +121,7 @@ static ssize_t device_write( struct file*       file,
                              loff_t*            offset)
 {
     message_slot_node * channel = (message_slot_node *)file->private_data;
-
+    char the_message[BUF_LEN];
     // No valid channel
     if (channel == NULL){
         printk("Provided fd does not contain valid channel");
