@@ -162,19 +162,19 @@ static ssize_t device_write( struct file*       file,
     channel->msg_length = i;
     
     for (j = 0; j < i; j++){
-        channel->message[i] = the_message[i];
+        channel->message[j] = the_message[j];
     }
     printk("Message wrote to channel: %d with minor: %d, length of message is: %d", channel->channel_id, iminor(file->f_inode), 
     channel->msg_length);
 
     printk("Write message outside the obj:\n");
-    for (i = 0; i < length; ++i) {
-        printk("%c", the_message[i]);
+    for (j = 0; j < length; ++j) {
+        printk("%c", the_message[j]);
     }
 
     printk("Write message inside the obj:\n");
-    for (i = 0; i < length; ++i) {
-        printk("%c", channel->message[i]);
+    for (j = 0; j < length; ++j) {
+        printk("%c", channel->message[j]);
     }
     return i;
 }
