@@ -10,7 +10,7 @@
 #include <linux/uaccess.h>  /* for get_user and put_user */
 #include <linux/string.h>   /* for memset. NOTE - not string.h!*/
 #include <linux/slab.h>
-//#include <errno.h>
+//#include <errno.h> // does not work for me for both nova and vm
 
 MODULE_LICENSE("GPL");
 
@@ -37,7 +37,7 @@ static long device_ioctl( struct   file* file,
         printk("Invalid param ioctl_command_id provided: %d \n", ioctl_command_id);
         return -22;
     }
-    if (ioctl_param <= 0 || ioctl_param > 256){
+    if (ioctl_param < 0 || ioctl_param > 256){
         printk("Invalid param ioctl_param provided: %d \n", ioctl_param);
         return -22;
     }
@@ -112,12 +112,6 @@ static ssize_t device_read( struct file* file,
         printk("copy_to_user failed\n");
         return -55;
     }
-    // for (i = 0; i < channel->msg_length; ++i) {
-	// 	if (put_user(channel->message[i], &buffer[i]) != 0) {
-    //         printk("Failed on put user");
-	// 		return -55;
-	// 	}
-	// }
 
     return length;
 }
