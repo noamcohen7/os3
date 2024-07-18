@@ -89,7 +89,7 @@ static ssize_t device_read( struct file* file,
     int msg_len, i;
 
     // No valid channel
-    if (!channel->is_active){
+    if (channel == NULL || !channel->is_active){
         printk("Provided fd does not contain valid channel");
         return -EINVAL;
     }
@@ -167,6 +167,7 @@ message_slot_node *get_node_res(int minor_num, int channel_id){
             if (cur_node->next == NULL){
                 break;
             }
+            cur_node = cur_node->next;
         }
     }
     return cur_node;
