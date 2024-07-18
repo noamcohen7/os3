@@ -47,7 +47,6 @@ int main(int argc, char **argv) {
     
     char *device_file_path = argv[1];
     int fd;
-    char *endptr;
     unsigned long channel_id = atoi(argv[2]);
 
     char *message = argv[3];
