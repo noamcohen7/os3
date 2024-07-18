@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
     
     char *device_file_path = argv[1];
     int fd;
+    
     unsigned long channel_id = atoi(argv[2]);
 
     char *message = argv[3];
@@ -60,7 +61,5 @@ int main(int argc, char **argv) {
     res_code = write(fd, message, strlen(message));
     handle_write(fd, res_code);
 
-    printf("Closing fd: %d", fd);
     close(fd);
-    printf("Closed fd: %d", fd);
 }
