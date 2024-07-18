@@ -2,6 +2,8 @@
 #define MESSAGE_SLOT_H
 
 #include <linux/ioctl.h>
+#include <stdbool.h>
+
 
 // The major device number.
 #define MAJOR_NUM 235
