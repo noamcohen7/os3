@@ -58,6 +58,7 @@ static long device_ioctl( struct   file* file,
         new_channel_node->channel_id = ioctl_param;
         new_channel_node->next = NULL;
         new_channel_node->msg_length = 0;
+        new_channel_node->is_active;
         
         // There is no channel under given node
         if (node_info == NULL){
@@ -88,7 +89,7 @@ static ssize_t device_read( struct file* file,
     int msg_len, i;
 
     // No valid channel
-    if (channel == NULL){
+    if (!channel->is_active){
         printk("Provided fd does not contain valid channel");
         return -EINVAL;
     }
@@ -146,7 +147,7 @@ static ssize_t device_write( struct file*       file,
     }
     printk("Number of written bytes is: %zd", i);
     channel->msg_length = i;
-    
+    channel->is_active = true;
     for (j = 0; j < i; j++){
         channel->message[j] = the_message[j];
     }

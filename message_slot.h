@@ -24,6 +24,7 @@ typedef struct message_slot_node
     char message[BUF_LEN];
     int msg_length;
     struct message_slot_node *next;
+    bool is_active;
 }message_slot_node;
 
 // Struct used to describe the list of nodes
