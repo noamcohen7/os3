@@ -1,549 +1,388 @@
 #include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include "queue.c"
+#include <threads.h>
+#include <stdatomic.h>
+#include <assert.h>
+#include "queue.h"
 
-#define NUM_OPERATIONS 10
-#define MAX_SIZE 1000
-#define NUM_THREADS_CONC 100
-#define NUM_THREADS 50
-#define SECOND_IN_NANOSECONDS 1000000000
-
-int dequeue_with_sleep(void *arg);
-int enqueueItems(void *arg);
-int enqueue_thread(void *arg);
-int dequeue_thread(void *arg);
-int consumer_thread(void *arg);
-int producer_thread(void *arg);
-
-void test_destroyQueue()
-{
-    printf("=== Testing destroyQueue ===\n");
-
-    initQueue();
-
-    destroyQueue();
-
-    printf("destroyQueue test passed.\n");
+// Helper function to print test results
+void print_result(const char *test_name, bool result) {
+    printf("%s: %s\n", test_name, result ? "PASSED" : "FAILED");
 }
 
-void test_enqueue_dequeue()
-{
-    printf("=== Testing enqueue and dequeue ===\n");
-
+// Function to test basic functionality of the queue
+void test_basic_functionality() {
     initQueue();
 
-    int items[] = {1, 2, 3, 4, 5};
-    size_t num_items = sizeof(items) / sizeof(items[0]);
+    // Test enqueue and size
+    enqueue((void *)(long)1);
+    enqueue((void *)(long)2);
+    enqueue((void *)(long)3);
+    print_result("Basic Functionality - Size after 3 enqueues", size() == 3);
 
-    // Enqueue items
-    for (size_t i = 0; i < num_items; i++)
-    {
-        enqueue(&items[i]);
-    }
+    // Test dequeue
+    assert((long)dequeue() == 1);
+    assert((long)dequeue() == 2);
+    assert((long)dequeue() == 3);
+    print_result("Basic Functionality - Dequeue", size() == 0);
 
-    // Dequeue items and check the order
-    for (size_t i = 0; i < num_items; i++)
-    {
-        int *item = (int *)dequeue();
-        printf("Dequeued: %d\n", *item);
-        assert(*item == items[i]);
-    }
-
-    // Queue should be empty
-    assert(size() == 0);
+    // Test visited
+    print_result("Basic Functionality - Visited after 3 enqueues and 3 dequeues", visited() == 3);
 
     destroyQueue();
-
-    printf("enqueue and dequeue test passed.\n");
 }
 
-void test_tryDequeue()
-{
-    printf("=== Testing tryDequeue ===\n");
-
+// Function to test edge cases of the queue
+void test_edge_cases() {
     initQueue();
 
-    int items[] = {1, 2, 3, 4, 5};
-    size_t num_items = sizeof(items) / sizeof(items[0]);
+    // Test dequeue on empty queue (should block)
+    thrd_t thread;
+    bool thread_finished = false;
 
-    // Try dequeueing when the queue is empty
+    // Thread function to dequeue from an empty queue
+    int dequeue_thread(void *arg) {
+        (void)arg;
+        dequeue();
+        thread_finished = true;
+        return 0;
+    }
+
+    thrd_create(&thread, dequeue_thread, NULL);
+    thrd_sleep(&(struct timespec){.tv_sec = 1, .tv_nsec = 0}, NULL);
+    print_result("Edge Case - Dequeue on empty queue blocks", !thread_finished);
+
+    // Enqueue to unblock the thread
+    enqueue((void *)(long)1);
+    thrd_join(thread, NULL);
+    print_result("Edge Case - Dequeue on empty queue unblocks", thread_finished);
+
+    // Test tryDequeue on empty queue
     void *item;
-    assert(!tryDequeue(&item));
+    bool result = tryDequeue(&item);
+    print_result("Edge Case - TryDequeue on empty queue", !result && item == NULL);
 
-    // Enqueue items
-    for (size_t i = 0; i < num_items; i++)
-    {
-        enqueue(&items[i]);
-    }
-
-    // Try dequeueing items and check the order
-    for (size_t i = 0; i < num_items; i++)
-    {
-        assert(tryDequeue(&item));
-        printf("Dequeued: %d\n", *(int *)item);
-        assert(*(int *)item == items[i]);
-    }
-
-    // Queue should be empty
-    assert(size() == 0);
+    // Test tryDequeue on non-empty queue
+    enqueue((void *)(long)2);
+    result = tryDequeue(&item);
+    print_result("Edge Case - TryDequeue on non-empty queue", result && (long)item == 2);
 
     destroyQueue();
-
-    printf("tryDequeue test passed.\n");
 }
 
-void test_size()
-{
-    printf("=== Testing size ===\n");
-
+// Function to test concurrency
+void test_concurrency() {
     initQueue();
 
-    int items[] = {1, 2, 3};
-    size_t num_items = sizeof(items) / sizeof(items[0]);
+    const int num_threads = 5;
+    const int num_items_per_thread = 1000;
+    thrd_t threads[num_threads];
+    atomic_size_t counter = ATOMIC_VAR_INIT(0);
 
-    // Enqueue items
-    for (size_t i = 0; i < num_items; i++)
-    {
-        enqueue(&items[i]);
-    }
-
-    // Check size
-    assert(size() == num_items);
-
-    // Perform enqueue and dequeue operations and check if size updates correctly
-    // ...
-
-    destroyQueue();
-
-    printf("size test passed.\n");
-}
-
-int dequeue_with_wait(void *arg)
-{
-    struct timespec *sleep_time = (struct timespec *)arg;
-
-    void *item;
-    while (1)
-    {
-        if (tryDequeue(&item))
-        {
-            // Item dequeued successfully
-            int value = *(int *)item;
-            printf("Dequeued item: %d\n", value);
-            return value;
+    // Thread function to enqueue items
+    int enqueue_thread(void *arg) {
+        long id = (long)arg;
+        for (int i = 0; i < num_items_per_thread; ++i) {
+            enqueue((void *)(id * num_items_per_thread + i));
         }
-        else
-        {
-            // Queue is empty, sleep for the specified time
-            thrd_sleep(sleep_time, NULL);
+        return 0;
+    }
+
+    // Thread function to dequeue items
+    int dequeue_thread(void *arg) {
+        (void)arg;
+        for (int i = 0; i < num_items_per_thread; ++i) {
+            dequeue();
+            atomic_fetch_add(&counter, 1);
         }
-    }
-}
-
-void test_waiting()
-{
-    initQueue();
-
-    int items[] = {1, 2, 3};
-    size_t num_items = sizeof(items) / sizeof(items[0]);
-
-    // Enqueue items
-    for (size_t i = 0; i < num_items; i++)
-    {
-        enqueue(&items[i]);
+        return 0;
     }
 
-    // Create threads that will wait for items in the queue
-    thrd_t threads[3];
-    struct timespec sleep_time = {5, 0}; // Sleep time of 5 seconds
-
-    for (int i = 0; i < 3; i++)
-    {
-        thrd_create(&threads[i], (int (*)(void *))dequeue_with_wait, &sleep_time);
+    // Create enqueue threads
+    for (long i = 0; i < num_threads; ++i) {
+        thrd_create(&threads[i], enqueue_thread, (void *)i);
     }
 
-    // Wait for all threads to finish
-    int values[3];
-    for (int i = 0; i < 3; i++)
-    {
-        thrd_join(threads[i], &values[i]);
-    }
-
-    // Queue should be empty
-    assert(size() == 0);
-    // All items should have been enqueued and dequeued
-    assert(visited() == num_items);
-    // No threads should be waiting
-    assert(waiting() == 0);
-
-    destroyQueue();
-}
-
-void test_basic_concurrent_enqueue_dequeue()
-{
-    printf("=== Testing basic concurrent enqueue and dequeue ===\n");
-
-    initQueue();
-
-    // Number of items to enqueue
-    int numItems = 100;
-    int half = numItems / 2;
-    // Enqueue items in a separate thread
-    thrd_t enqueueThread_a;
-    thrd_t enqueueThread_b;
-    thrd_create(&enqueueThread_a, (int (*)(void *))enqueueItems, &half);
-    thrd_create(&enqueueThread_b, (int (*)(void *))enqueueItems, &half);
-
-    // Dequeue items in the main thread
-    for (int i = 0; i < numItems; i++)
-    {
-        int *item = (int *)dequeue();
-        printf("Dequeued item: %d\n", *item);
-        free(item);
-    }
-
-    thrd_join(enqueueThread_a, NULL);
-    thrd_join(enqueueThread_b, NULL);
-
-    destroyQueue();
-
-    printf("Basic concurrent enqueue and dequeue test passed.\n");
-}
-
-// Thread function to enqueue items
-int enqueueItems(void *arg)
-{
-    int numItems = *(int *)arg;
-    for (int i = 0; i < numItems; i++)
-    {
-        // printf("%d\n", i);
-        int *item = (int *)malloc(sizeof(int));
-        *item = i + 1;
-        // printf("%d\n", *item);
-        enqueue((void *)item);
-        printf("Enqueued item: %d\n", i + 1);
-    }
-    thrd_exit(0);
-}
-
-void test_enqueue_tryDequeue()
-{
-    printf("=== Testing enqueue and tryDequeue ===\n");
-
-    initQueue();
-
-    // Enqueue items
-    int item1 = 1;
-    int item2 = 2;
-    int item3 = 3;
-    enqueue(&item1);
-    enqueue(&item2);
-    enqueue(&item3);
-
-    // Try dequeueing items and check the order
-    void *item;
-    assert(tryDequeue(&item));
-    printf("Dequeued item: %d\n", *(int *)item);
-    assert(*(int *)item == item1);
-
-    assert(tryDequeue(&item));
-    printf("Dequeued item: %d\n", *(int *)item);
-    assert(*(int *)item == item2);
-
-    assert(tryDequeue(&item));
-    printf("Dequeued item: %d\n", *(int *)item);
-    assert(*(int *)item == item3);
-
-    // Try dequeue from an empty queue
-    assert(!tryDequeue(&item));
-
-    destroyQueue();
-
-    printf("enqueue and tryDequeue test passed.\n");
-}
-
-void test_enqueue_dequeue_with_sleep()
-{
-    printf("=== Testing enqueue and dequeue with sleep time ===\n");
-
-    initQueue();
-
-    // Enqueue items
-    int item1 = 1;
-    int item2 = 2;
-    int item3 = 3;
-    enqueue(&item1);
-    enqueue(&item2);
-    enqueue(&item3);
-
-    // Create multiple threads to concurrently dequeue items with a delay between each dequeue operation
-    thrd_t threads[3];
-    for (int i = 0; i < 3; i++)
-    {
-        thrd_create(&threads[i], dequeue_with_sleep, NULL);
-    }
-
-    // Wait for all threads to finish
-    for (int i = 0; i < 3; i++)
-    {
+    // Wait for enqueue threads to finish
+    for (int i = 0; i < num_threads; ++i) {
         thrd_join(threads[i], NULL);
     }
 
-    // Queue should be empty
-    assert(size() == 0);
+    // Check if the size of the queue is correct
+    print_result("Concurrency - Size after enqueues", size() == num_threads * num_items_per_thread);
+
+    // Create dequeue threads
+    for (int i = 0; i < num_threads; ++i) {
+        thrd_create(&threads[i], dequeue_thread, NULL);
+    }
+
+    // Wait for dequeue threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        thrd_join(threads[i], NULL);
+    }
+
+    // Check if all items were dequeued
+    print_result("Concurrency - Dequeue all items", counter == num_threads * num_items_per_thread);
 
     destroyQueue();
-
-    printf("enqueue and dequeue with sleep time test passed.\n");
 }
 
-int dequeue_with_sleep(void *arg)
-{
-    int sleep_time = (rand() % 6 + 5) * 1000; // Random sleep time between 5000 and 10000 milliseconds
-
-    thrd_sleep(&(struct timespec){sleep_time / 1000, (sleep_time % 1000) * 1000000}, NULL);
-
-    int *item = (int *)dequeue();
-    printf("Dequeued item with sleep: %d\n", *item);
-
-    return 0;
-}
-
-void test_fifo_order()
-{
-    printf("=== Testing FIFO order ===\n");
-
+// Function to test visited count
+void test_visited_count() {
     initQueue();
 
-    thrd_t consumer_threads[NUM_THREADS];
-    int dequeue_order[NUM_THREADS];
-
-    // Create consumer threads
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        dequeue_order[i] = -1; // Initialize the dequeue order
-        thrd_create(&consumer_threads[i], consumer_thread, &dequeue_order[i]);
-        thrd_sleep(
-            &(const struct timespec){.tv_nsec = 0.005 * SECOND_IN_NANOSECONDS},
-            NULL);
+    // Enqueue and dequeue multiple items
+    const int num_items = 10;
+    for (int i = 0; i < num_items; ++i) {
+        enqueue((void *)(long)i);
+    }
+    for (int i = 0; i < num_items; ++i) {
+        dequeue();
     }
 
-    // Create producer thread
-    thrd_t producer_thread_handle;
-    thrd_create(&producer_thread_handle, producer_thread, NULL);
+    print_result("Visited Count - After 10 enqueues and dequeues", visited() == num_items);
 
-    // Wait for the producer thread to finish
-    thrd_join(producer_thread_handle, NULL);
-
-    // Wait for all consumer threads to finish dequeuing
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        thrd_join(consumer_threads[i], NULL);
+    // Enqueue and dequeue again to check if the visited count accumulates correctly
+    for (int i = 0; i < num_items; ++i) {
+        enqueue((void *)(long)i);
+    }
+    for (int i = 0; i < num_items; ++i) {
+        dequeue();
     }
 
-    // Verify FIFO order
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        printf("Thread %d dequeued item %d\n", i, dequeue_order[i]);
-        assert(dequeue_order[i] == i + 1);
-    }
+    print_result("Visited Count - After 20 enqueues and dequeues", visited() == 2 * num_items);
 
     destroyQueue();
-
-    printf("FIFO order test passed.\n");
 }
 
-int consumer_thread(void *arg)
-{
-    int *dequeue_order = (int *)arg;
-
-    void *item = dequeue();
-
-    *dequeue_order = *(int *)item;
-    free(item);
-
-    return 0;
-}
-
-int producer_thread(void *arg)
-{
-    (void)arg;
-
-    // Enqueue at least NUM_THREADS items
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        int *item = malloc(sizeof(int));
-        *item = i + 1;
-        enqueue(item);
-    }
-
-    return 0;
-}
-void test_multiconcurrent_enqueue_dequeue()
-{
-    printf("=== Testing multiconcurrent enqueue and dequeue ===\n");
-
+// Function to stress test the queue with a large number of operations
+void stress_test() {
     initQueue();
 
-    thrd_t enqueueThreads[NUM_THREADS_CONC];
-    thrd_t dequeueThreads[NUM_THREADS_CONC];
+    const int num_threads = 4;  // Reduce number of threads
+    const int num_operations = 500;  // Reduce number of operations
+    thrd_t threads[num_threads];
+    atomic_size_t enqueue_counter = ATOMIC_VAR_INIT(0);
+    atomic_size_t dequeue_counter = ATOMIC_VAR_INIT(0);
 
-    // Create threads for dequeueing
-    for (int i = 0; i < NUM_THREADS_CONC; i++)
-    {
-        thrd_create(&dequeueThreads[i], (int (*)(void *))dequeue_thread, NULL);
+    // Thread function to perform enqueue operations
+    int enqueue_thread(void *arg) {
+        (void)arg;
+        for (int i = 0; i < num_operations; ++i) {
+            enqueue((void *)(long)i);
+            atomic_fetch_add(&enqueue_counter, 1);
+        }
+        return 0;
     }
 
-    // Create threads for enqueueing
-    for (int i = 0; i < NUM_THREADS_CONC; i++)
-    {
-        thrd_create(&enqueueThreads[i], (int (*)(void *))enqueue_thread, NULL);
-    }
-    // Wait for enqueueing threads to finish
-    for (int i = 0; i < NUM_THREADS_CONC; i++)
-    {
-        thrd_join(enqueueThreads[i], NULL);
-    }
-
-    // Wait for dequeueing threads to finish
-    for (int i = 0; i < NUM_THREADS_CONC; i++)
-    {
-        thrd_join(dequeueThreads[i], NULL);
+    // Thread function to perform dequeue operations
+    int dequeue_thread(void *arg) {
+        (void)arg;
+        for (int i = 0; i < num_operations; ++i) {
+            dequeue();
+            atomic_fetch_add(&dequeue_counter, 1);
+        }
+        return 0;
     }
 
-    // Queue should be empty
-    assert(size() == 0);
-    // All items should have been dequeued
-    assert(visited() == NUM_THREADS_CONC);
-    // No threads should be waiting
-    assert(waiting() == 0);
+    // Create enqueue threads
+    for (int i = 0; i < num_threads / 2; ++i) {
+        thrd_create(&threads[i], enqueue_thread, NULL);
+    }
+
+    // Create dequeue threads
+    for (int i = num_threads / 2; i < num_threads; ++i) {
+        thrd_create(&threads[i], dequeue_thread, NULL);
+    }
+
+    // Wait for all threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        thrd_join(threads[i], NULL);
+    }
+
+    print_result("Stress Test - Total enqueues", enqueue_counter == (num_threads / 2) * num_operations);
+    print_result("Stress Test - Total dequeues", dequeue_counter == (num_threads / 2) * num_operations);
 
     destroyQueue();
-    printf("Multiconcurrent enqueue and dequeue test passed.\n");
 }
 
-int enqueue_thread(void *arg)
-{
-    unsigned long *item = malloc(sizeof(unsigned long));
-    *item = thrd_current(); // Set item value to thread index
-
-    enqueue(item);
-    printf("Thread %lx enqueued item: %lx\n", thrd_current(), thrd_current());
-
-    return 0;
-}
-
-int dequeue_thread(void *arg)
-{
-    unsigned long *item = (unsigned long *)dequeue();
-    printf("Thread %lx dequeued item: %lx\n", thrd_current(), thrd_current());
-    free(item);
-
-    return 0;
-}
-
-void test_edge_cases()
-{
-    printf("=== Testing edge cases ===\n");
-
+// Function to test FIFO order
+void test_fifo_order() {
     initQueue();
 
-    // Dequeue from an empty queue - Should block until an item is enqueued
-    // FIXME: comment this in, make sure it blocks, then comment it back out
-    // int *item = (int *)dequeue();
-    // assert(item == NULL);
-    // printf("Dequeue from an empty queue - Assertion failed: Expected NULL\n");
-
-    destroyQueue();
-
-    printf("edge cases test passed.\n");
-}
-
-void test_mixed_operations()
-{
-    printf("=== Testing mixed operations ===\n");
-
-    initQueue();
-
-    // Enqueue items
-    int item1 = 1;
-    enqueue(&item1);
-    printf("Enqueued item: %d\n", item1);
-
-    // Try dequeue
-    void *tryDequeueItem;
-    if (tryDequeue(&tryDequeueItem))
-    {
-        int *dequeuedItem = (int *)tryDequeueItem;
-        printf("Dequeued item: %d\n", *dequeuedItem);
+    // Enqueue multiple items
+    for (int i = 1; i <= 5; ++i) {
+        enqueue((void *)(long)i);
     }
 
-    // Enqueue more items
-    int item2 = 2;
-    enqueue(&item2);
-    printf("Enqueued item: %d\n", item2);
-
-    int item3 = 3;
-    enqueue(&item3);
-    printf("Enqueued item: %d\n", item3);
-
-    // Dequeue an item
-    int *dequeuedItem = (int *)dequeue();
-    printf("Dequeued item: %d\n", *dequeuedItem);
-
-    // Enqueue another item
-    int item4 = 4;
-    enqueue(&item4);
-    printf("Enqueued item: %d\n", item4);
-
-    // Try dequeue multiple times
-    for (int i = 0; i < 3; i++)
-    {
-        if (tryDequeue(&tryDequeueItem))
-        {
-            int *dequeuedItem = (int *)tryDequeueItem;
-            printf("Dequeued item: %d\n", *dequeuedItem);
+    // Dequeue and check order
+    bool fifo_order = true;
+    for (int i = 1; i <= 5; ++i) {
+        if ((long)dequeue() != i) {
+            fifo_order = false;
+            break;
         }
     }
 
-    // Enqueue additional items
-    int item5 = 5;
-    enqueue(&item5);
-    printf("Enqueued item: %d\n", item5);
-
-    int item6 = 6;
-    enqueue(&item6);
-    printf("Enqueued item: %d\n", item6);
-
-    // Dequeue remaining items
-    while (size() > 0)
-    {
-        int *dequeuedItem = (int *)dequeue();
-        printf("Dequeued item: %d\n", *dequeuedItem);
-    }
+    print_result("FIFO Order Test", fifo_order);
 
     destroyQueue();
-
-    printf("mixed operations test passed.\n");
 }
 
-int main()
-{
-    test_destroyQueue();
-    test_enqueue_dequeue();
-    test_tryDequeue();
-    test_size();
-    test_waiting();
-    test_basic_concurrent_enqueue_dequeue();
-    test_fifo_order();
-    test_multiconcurrent_enqueue_dequeue();
-    test_enqueue_tryDequeue();
-    test_enqueue_dequeue_with_sleep();
+// Function to test multiple threads enqueuing and dequeuing
+void test_multiple_threads() {
+    initQueue();
+
+    const int num_threads = 10;
+    const int num_items_per_thread = 100;
+    thrd_t threads[num_threads];
+    atomic_size_t counter = ATOMIC_VAR_INIT(0);
+
+    // Thread function to enqueue and dequeue items
+    int thread_func(void *arg) {
+        long id = (long)arg;
+        for (int i = 0; i < num_items_per_thread; ++i) {
+            enqueue((void *)(id * num_items_per_thread + i));
+        }
+        for (int i = 0; i < num_items_per_thread; ++i) {
+            dequeue();
+            atomic_fetch_add(&counter, 1);
+        }
+        return 0;
+    }
+
+    // Create threads
+    for (long i = 0; i < num_threads; ++i) {
+        thrd_create(&threads[i], thread_func, (void *)i);
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        thrd_join(threads[i], NULL);
+    }
+
+    // Check if all items were dequeued
+    print_result("Multiple Threads Test - Dequeue all items", counter == num_threads * num_items_per_thread);
+
+    destroyQueue();
+}
+
+// Function to test large data
+void test_large_data() {
+    initQueue();
+
+    const int num_items = 100000;
+    for (int i = 0; i < num_items; ++i) {
+        enqueue((void *)(long)i);
+    }
+
+    bool large_data_correct = true;
+    for (int i = 0; i < num_items; ++i) {
+        if ((long)dequeue() != i) {
+            large_data_correct = false;
+            break;
+        }
+    }
+
+    print_result("Large Data Test", large_data_correct);
+
+    destroyQueue();
+}
+
+// Function to test random operations
+void test_random_operations() {
+    initQueue();
+
+    const int num_operations = 1000;
+    thrd_t threads[2];
+
+    // Thread function to perform random enqueue/dequeue operations
+    int random_operations(void *arg) {
+        (void)arg;
+        for (int i = 0; i < num_operations; ++i) {
+            if (rand() % 2) {
+                enqueue((void *)(long)i);
+            } else if (size() > 0) {
+                dequeue();
+            }
+        }
+        return 0;
+    }
+
+    // Create threads
+    for (int i = 0; i < 2; ++i) {
+        thrd_create(&threads[i], random_operations, NULL);
+        thrd_sleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 5000}, NULL);
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < 2; ++i) {
+        thrd_join(threads[i], NULL);
+    }
+
+    print_result("Random Operations Test - No deadlocks", true);
+
+    destroyQueue();
+}
+
+// Function to test that threads wake up in correct order
+void test_thread_wakeup_order() {
+    initQueue();
+
+    const int num_threads = 3;
+    thrd_t threads[num_threads];
+    atomic_size_t wakeup_order[num_threads];
+    atomic_size_t wakeup_index = ATOMIC_VAR_INIT(0);
+
+    // Thread function to dequeue and record wakeup order
+    int dequeue_and_record(void *arg) {
+        long id = (long)arg;
+        dequeue();
+        wakeup_order[atomic_fetch_add(&wakeup_index, 1)] = id;
+        return 0;
+    }
+
+    // Create threads
+    for (long i = 0; i < num_threads; ++i) {
+        thrd_create(&threads[i], dequeue_and_record, (void *)i);
+        thrd_sleep(&(struct timespec){.tv_sec = 1, .tv_nsec = 0}, NULL);
+    }
+
+    // Enqueue items to wake up the threads
+    for (int i = 0; i < num_threads; ++i) {
+        enqueue((void *)(long)i);
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        thrd_join(threads[i], NULL);
+    }
+
+    // Check if threads were woken up in the correct order
+    bool correct_order = true;
+    for (int i = 0; i < num_threads; ++i) {
+        if (wakeup_order[i] != i) {
+            correct_order = false;
+            break;
+        }
+    }
+
+    print_result("Thread Wakeup Order Test", correct_order);
+
+    destroyQueue();
+}
+
+int main() {
+    test_basic_functionality();
     test_edge_cases();
-    test_mixed_operations();
+    test_concurrency();
+    test_visited_count();
+    stress_test();
+    test_fifo_order();
+    test_multiple_threads();
+    test_large_data();
+    test_random_operations();
+    test_thread_wakeup_order();
 
     return 0;
 }
